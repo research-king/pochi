@@ -51,8 +51,14 @@ unsigned char RobotControl::powerOn()
         {
             char filename[32];
             sprintf(filename, "/" MOUNT_NAME "/image/img%d.jpg", filecnt++);
-            m_pCameraControl->takeCamera(filename);
-            log("POCHI", LOGLEVEL_MARK, "CAMERA TAKE PICTURE\r\n");
+            if( m_pCameraControl->takeCamera(filename) == 1 )
+            {
+                log("POCHI", LOGLEVEL_MARK, "CAMERA TAKE PICTURE SUCCESS\r\n");
+            }
+            else
+            {
+                log("POCHI", LOGLEVEL_ERROR, "CAMERA TAKE PICTURE FAILED\r\n");
+            }
         }
 
         Thread::wait(1000);

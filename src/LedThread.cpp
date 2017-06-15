@@ -16,23 +16,17 @@ static int s_LedCnt = 0;
  */
 void LedThread(void)
 {
-
-    log("LED", LOGLEVEL_INFO, "LED THREAD START\r\n");
-
-    char buf[256];
-    memset(buf, 0, sizeof(buf));
+    log("LED", LOGLEVEL_DEBUG, "LED THREAD START\r\n");
 
     s_isLife = true;
 
     while (s_isLife)
     {
-
         s_led = !s_led;
 
         s_LedCnt++;
 
-        snprintf(buf, sizeof(buf) - 1, "LED THREAD LOOP %d\r\n", s_LedCnt);
-        log("LED", LOGLEVEL_DEBUG, buf); // 生存確認用ログ
+        log("LED", LOGLEVEL_DEBUG, "LED THREAD LOOP %d\r\n", s_LedCnt); // 生存確認用ログ
 
         Thread::wait(1000);
     }

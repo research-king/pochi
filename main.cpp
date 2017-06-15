@@ -36,12 +36,8 @@ static Thread s_led_thread;
  */
 int main()
 {
-    char buf[256];
-    memset(buf, 0, sizeof(buf));
-    snprintf(buf, sizeof(buf) - 1, "PROC START. Build Date: %11.11s %8.8s\r\n",
+    log("MAIN", LOGLEVEL_MARK, "PROC START. Build Date: %11.11s %8.8s\r\n",
              __DATE__, __TIME__);
-
-    log("MAIN", LOGLEVEL_MARK, buf);
 
     Thread::wait(2000);
 
@@ -59,9 +55,9 @@ int main()
     log("MAIN", LOGLEVEL_MARK, "STORAGE CONNECTED\r\n");
 
     Thread::wait(1000);
-    
+
     //-----------------------------------
-    // メイン処理
+    // POCHIメイン処理(中でループ)
     //-----------------------------------
     s_RobotControl.powerOn();
 }

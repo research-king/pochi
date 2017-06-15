@@ -17,8 +17,10 @@
 #define MOTOR_TX_PIN        P5_15
 #define MOTOR_RX_PIN        P5_14
 
-// ---- CAMERA  ----
-#define CAMERA_TX_PIN       P3_9
-#define CAMERA_RX_PIN       P3_10
+// ---- WIFI  ----
+#define WIFI_EN_PIN         P5_3
+#define WIFI_PI_PIN         P3_14
+#define WIFI_TX_PIN         P3_15
+#define WIFI_RX_PIN         P0_2
 
 #endif  //COMMON_H

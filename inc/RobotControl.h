@@ -1,30 +1,37 @@
 #include <mbed.h>
 
+#include "common.h"
+
 #include "MotorControl.h"
 #include "CameraControl.h"
+
+#include "ESP32Interface.h"
 
 class RobotControl
 {
 public:
   RobotControl();
 
-  unsigned char powerOn(void);
+  bool powerOn(void);
 
 private:  
   unsigned char m_isLife;
   MotorControl* m_pMotorControl;
   CameraControl* m_pCameraControl;
+  ESP32Interface* m_pWifiInterface;
 
-  unsigned char think(void);
+  bool isConnectWifi(void);
+  bool connectWifi(void);
+  void onConnectWifiEvent(void);
 
-  unsigned char gotoFront(void);
-  unsigned char gotoBack(void);
-  unsigned char turnLeft(void);
-  unsigned char turnRight(void);
+  bool gotoFront(void);
+  bool gotoBack(void);
+  bool turnLeft(void);
+  bool turnRight(void);
 
-  unsigned char stop(void);
+  bool stop(void);
 
-  unsigned char playDance(void);
-  unsigned char playSong(void);
+  bool playDance(void);
+  bool playSong(void);
 
 };

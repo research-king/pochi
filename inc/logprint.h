@@ -9,6 +9,6 @@ enum LOG_LEVEL {
     LOGLEVEL_MARK,
 };
 
-extern void log(const char* tag, LOG_LEVEL level, const char* str);
+extern void log(const char* tag, LOG_LEVEL level, const char* str, ...);
 
 #endif  // LOGPRINT_H

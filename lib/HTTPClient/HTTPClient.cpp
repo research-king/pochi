@@ -19,7 +19,7 @@
 
 #include "settings.h"
 //Debug is disabled by default
-#if 0
+#if 1
 //Enable debug
 #include <cstdio>
 #define DBG(x, ...) std::printf("[HTTPClient : DBG]"x"\r\n", ##__VA_ARGS__);
@@ -54,7 +54,7 @@
 #include <string.h>
 
 static  TCPSocket m_sock;
-#define CHUNK_SIZE    (256*4*8)
+#define CHUNK_SIZE    256//(256*4*8)
 #define SEND_BUF_SIZE 512
 static char send_buf[SEND_BUF_SIZE] ;
 static char *send_buf_p ;

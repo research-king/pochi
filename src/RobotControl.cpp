@@ -8,13 +8,13 @@
 
 #include "TCPSocket.h"
 
-#define TEST_WIFI_SSID "SSIDxxxx"
-#define TEST_WIFI_PASS "PASSxxxx"
-#define TEST_TCP_IPADDR "xxx.xxx.xxx.xxx"
-#define TEST_TCP_PORT 12345
+#define WATSON_POST_URL "https://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=b59c9434aebd9ab825d1b015f31266475bbf9cd3&version=2016-05-20"
+#define WATSON_GET_URL "https://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=b59c9434aebd9ab825d1b015f31266475bbf9cd3&url=http://weekly.ascii.jp/elem/000/000/346/346250/1032kanna-top_1200x.jpg&version=2016-05-19"
 
-static char s_SendBuff[1024];
-static char s_RecvBuff[1024];
+#define TEST_WIFI_SSID "4CE67630E22B"
+#define TEST_WIFI_PASS "t3340pn5mkmkh"
+#define TEST_TCP_IPADDR "172.20.10.4"
+#define TEST_TCP_PORT 12345
 
 /**
  * コンストラクタ
@@ -69,8 +69,8 @@ bool RobotControl::connectWifi()
     int count = m_pWifiInterface->scan(ap, 10);
     for (int i = 0; i < count; i++)
     {
-        log("POCHI", LOGLEVEL_INFO, "WIFI STATION: %s RSSI: %hhd\r\n", ap[i].get_ssid(),
-            ap[i].get_rssi());
+        log("POCHI", LOGLEVEL_INFO, "WIFI STATION: %s RSSI: %hhd Ch: %hhd\r\n", ap[i].get_ssid(),
+            ap[i].get_rssi(), ap[i].get_channel());
     }
 
     Thread::wait(1000);
@@ -78,28 +78,26 @@ bool RobotControl::connectWifi()
     //-----------------------------------
     // AP接続
     //-----------------------------------
-    while (true)
+    while (1)
     {
         int ret = m_pWifiInterface->connect(TEST_WIFI_SSID, TEST_WIFI_PASS, NSAPI_SECURITY_WPA2);
         if (ret != 0)
         {
-            log("POCHI", LOGLEVEL_ERROR, "WIFI CONNECT ERROR. SSID=%s, PASS=%s, ret=%d\r\n",
-                TEST_WIFI_SSID,
-                TEST_WIFI_PASS,
+            log("POCHI", LOGLEVEL_ERROR, "WIFI CONNECT ERROR. SSID=%s, PASS=%s, ret=%d\r\n", 
+                TEST_WIFI_SSID, 
+                TEST_WIFI_PASS, 
                 ret);
         }
         else
         {
-            log("POCHI", LOGLEVEL_MARK, "WIFI CONNECTED. ret=%d, IP=%s, RSSI=%d\r\n",
-                ret,
-                m_pWifiInterface->get_ip_address(),
-                m_pWifiInterface->get_rssi());
-
             break;
         }
-
         Thread::wait(5000);
     }
+
+    log("POCHI", LOGLEVEL_MARK, "WIFI CONNECTED. IP=%s, RSSI=%d\r\n",
+        m_pWifiInterface->get_ip_address(),
+        m_pWifiInterface->get_rssi());
 
     Thread::wait(1000);
 
@@ -141,104 +139,70 @@ bool RobotControl::powerOn()
     //-----------------------------------
     // メイン処理
     //-----------------------------------
+    
+    
     while (m_isLife)
     {
-        //-----------------------------------
-        // カメラ撮影
-        //-----------------------------------
-        if (m_pCameraControl != NULL)
-        {
-            char filename[32];
-            sprintf(filename, "/" MOUNT_NAME "/img%d.jpg", filecnt++);
-            if (m_pCameraControl->takeCamera(filename) == 1)
-            {
-                log("POCHI", LOGLEVEL_INFO, "CAMERA TAKE PICTURE SUCCESS. %s\r\n", filename);
-
-                //-----------------------------------
-                // 撮影した画像をネット送信
-                //-----------------------------------
-                FILE *fp = fopen(filename, "r");
-                if (fp != NULL)
-                {
-                    fseek(fp, 0, SEEK_END);
-                    int len = ftell(fp);
-                    fseek(fp, 0, SEEK_SET); 
-
-                    log("POCHI", LOGLEVEL_DEBUG, "IMAGE FILE SIZE = %d\r\n", len);
-
-                    char *buf = new char[len];
-                    fread(buf, 1, sizeof(buf), fp);
-
-                    fclose(fp);
-
 #if 0
-                    TCPSocket socket;
-                    socket.open(m_pWifiInterface);
-                    int ret = 0;
-                    const char *addr = TEST_TCP_IPADDR;
-                    int port = TEST_TCP_PORT;
-                    ret = socket.connect(addr, port);
-                    if (ret >= 0)
-                    {
-                        log("POCHI", LOGLEVEL_INFO, "SOCKET CONNECT SUCCESS. ret=%d, addr=%s, port=%d\r\n", ret, addr, port);
-                        ret = socket.send(buf, len);
-                        if (ret > 0)
-                        {
-                            log("POCHI", LOGLEVEL_INFO, "SOCKET SEND SUCCESS. ret=%d\r\n", ret);
-                        }
-                        else
-                        {
-                            log("POCHI", LOGLEVEL_ERROR, "SOCKET SEND ERROR.\r\n");
-                        }
-                    }
-                    else
-                    {
-                        log("POCHI", LOGLEVEL_ERROR, "SOCKET CONNECT ERROR. ret=%d, addr=%s, port=%d\r\n", ret, addr, port);
-                    }
+      //-----------------------------------
+      // カメラ撮影
+      //-----------------------------------
+      if (m_pCameraControl != NULL)
+      {
+          char filename[32];
+          sprintf(filename, "/" MOUNT_NAME "/img%d.jpg", filecnt++);
+          if (m_pCameraControl->takeCamera(filename) == 1)
+          {
+              log("POCHI", LOGLEVEL_INFO, "CAMERA TAKE PICTURE SUCCESS. %s\r\n", filename);
 
-                    socket.close();
+              //-----------------------------------
+              // 撮影した画像をネット送信
+              //-----------------------------------
+              FILE *fp = fopen(filename, "r");
+              if (fp != NULL)
+              {
+                  fseek(fp, 0, SEEK_END);
+                  int len = ftell(fp);
+                  fseek(fp, 0, SEEK_SET); 
 
-#else
-                    int ret = 0;
-                    HTTPClient http(m_pWifiInterface);
+                  log("POCHI", LOGLEVEL_DEBUG, "IMAGE FILE SIZE = %d\r\n", len);
 
-                    HTTPMap map;
-                    map.put("Hello", "World");
-                    map.put("test", "1234");
+                  char *buf = new char[len];
+                  fread(buf, 1, sizeof(buf), fp);
 
-                    //POST data
-
-                    HTTPText inText(s_RecvBuff, sizeof(s_RecvBuff));
-
-                    const char *url = "www.google.com";
-                    log("POCHI", LOGLEVEL_MARK, "HTTP POST.url=%s\r\n", url);
-
-                    ret = http.get(url, &inText);
-//                    ret = http.post(url, map, &inText);
-                    if (!ret)
-                    {
-                        log("POCHI", LOGLEVEL_MARK, "HTTP POST SUCCESS. \r\n data=[%s] \r\n",
-                            s_RecvBuff);
-                    }
-                    else
-                    {
-                        log("POCHI", LOGLEVEL_ERROR, "HTTP POST ERROR. ret=%d, rescode=%d\r\n",
-                            ret,
-                            http.getHTTPResponseCode());
-                    }
+                  fclose(fp);
+              }
+          }
+      }
 #endif
-                    delete buf;
-                }
-            }
-            else
-            {
-                log("POCHI", LOGLEVEL_ERROR, "CAMERA TAKE PICTURE FAILED\r\n");
-            }
-        }
+      int ret = 0;
+      char str[1024];
+      HTTPClient http(m_pWifiInterface);
+      HTTPMap map;
 
-        Thread::wait(1000);
+      //POST data
+      HTTPText inText(str, sizeof(str));
+      map.put("Hello", "World");
+      map.put("test", "1234");
+      printf("\nTrying to post data...\r\n");
+      ret = http.post("http://posttestserver.com/post.php?dir=example", map, &inText);
+      
+      //ret = http.post("https://www.google.com/", map, &inText);
+      //ret = http.post(WATSON_POST_URL, map, &inText);
+      if (!ret)
+      {
+          printf("Executed POST successfully - read %d characters\r\n", strlen(str));
+          printf("Result: %s\n", str);
+      }
+      else
+      {
+          printf("Error - ret = %d - HTTP return code = %d\r\n", ret, http.getHTTPResponseCode());
+      }
+
+     m_pWifiInterface->disconnect();
+    
+     Thread::wait(3000);
     }
-
     return true;
 }
 

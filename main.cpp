@@ -36,8 +36,10 @@ static Thread s_led_thread;
  */
 int main()
 {
+    log("MAIN", LOGLEVEL_MARK, "----------------------------------------------------------\r\n");
     log("MAIN", LOGLEVEL_MARK, "PROC START. Build Date: %11.11s %8.8s\r\n",
              __DATE__, __TIME__);
+    log("MAIN", LOGLEVEL_MARK, "----------------------------------------------------------\r\n");
 
     Thread::wait(2000);
 

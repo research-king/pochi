@@ -24,8 +24,6 @@ HTTP Client header file
 #ifndef HTTP_CLIENT_H
 #define HTTP_CLIENT_H
 
-#include "TCPSocket.h"
-
 #define HTTP_CLIENT_DEFAULT_TIMEOUT 15000
 
 class HTTPData;
@@ -34,19 +32,19 @@ class HTTPData;
 #include "mbed.h"
 
 ///HTTP client results
-enum HTTPResult
-{
-  HTTP_PROCESSING, ///<Processing
-  HTTP_PARSE, ///<url Parse error
-  HTTP_DNS, ///<Could not resolve name
-  HTTP_PRTCL, ///<Protocol error
-  HTTP_NOTFOUND, ///<HTTP 404 Error
-  HTTP_REFUSED, ///<HTTP 403 Error
-  HTTP_ERROR, ///<HTTP xxx error
-  HTTP_TIMEOUT, ///<Connection timeout
-  HTTP_CONN, ///<Connection error
-  HTTP_CLOSED, ///<Connection was closed by remote host
-  HTTP_OK = 0, ///<Success
+enum HTTPResult {
+    HTTP_PROCESSING, ///<Processing
+    HTTP_PARSE, ///<url Parse error
+    HTTP_DNS, ///<Could not resolve name
+    HTTP_PRTCL, ///<Protocol error
+    HTTP_NOTFOUND, ///<HTTP 404 Error
+    HTTP_REFUSED, ///<HTTP 403 Error
+    HTTP_ERROR, ///<HTTP xxx error
+    HTTP_TIMEOUT, ///<Connection timeout
+    HTTP_CONN, ///<Connection error
+    HTTP_CLOSED, ///<Connection was closed by remote host
+    HTTP_REDIRECT, ///<HTTP 300 - 303
+    HTTP_OK = 0, ///<Success
 };
 
 /**A simple HTTP Client
@@ -57,100 +55,117 @@ The HTTPClient is composed of:
 class HTTPClient
 {
 public:
-  ///Instantiate the HTTP client
-  HTTPClient(NetworkInterface *net);
-  ~HTTPClient();
-  
-#if 0 //TODO add header handlers
-  /**
-  Provides a basic authentification feature (Base64 encoded username and password)
-  Pass two NULL pointers to switch back to no authentication
-  @param user username to use for authentication, must remain valid durlng the whole HTTP session
-  @param user password to use for authentication, must remain valid durlng the whole HTTP session
-  */
-  void basicAuth(const char* user, const char* password); //Basic Authentification
-#endif
-  
-  //High Level setup functions
-  /** Execute a GET request on the URL
-  Blocks until completion
-  @param url : url on which to execute the request
-  @param pDataIn : pointer to an IHTTPDataIn instance that will collect the data returned by the request, can be NULL
-  @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
-  @return 0 on success, HTTP error (<0) on failure
-  */
-  HTTPResult get(const char* url, IHTTPDataIn* pDataIn, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
-  
-  /** Execute a GET request on the URL
-  Blocks until completion
-  This is a helper to directly get a piece of text from a HTTP result
-  @param url : url on which to execute the request
-  @param result : pointer to a char array in which the result will be stored
-  @param maxResultLen : length of the char array (including space for the NULL-terminating char)
-  @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
-  @return 0 on success, HTTP error (<0) on failure
-  */
-  HTTPResult get(const char* url, char* result, size_t maxResultLen, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
+    ///Instantiate the HTTP client
+    HTTPClient(NetworkInterface *net);
+    ~HTTPClient();
 
-  /** Execute a POST request on the URL
-  Blocks until completion
-  @param url : url on which to execute the request
-  @param dataOut : a IHTTPDataOut instance that contains the data that will be posted
-  @param pDataIn : pointer to an IHTTPDataIn instance that will collect the data returned by the request, can be NULL
-  @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
-  @return 0 on success, HTTP error (<0) on failure
-  */
-  HTTPResult post(const char* url, const IHTTPDataOut& dataOut, IHTTPDataIn* pDataIn, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
-  
-  /** Execute a PUT request on the URL
-  Blocks until completion
-  @param url : url on which to execute the request
-  @param dataOut : a IHTTPDataOut instance that contains the data that will be put
-  @param pDataIn : pointer to an IHTTPDataIn instance that will collect the data returned by the request, can be NULL
-  @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
-  @return 0 on success, HTTP error (<0) on failure
-  */
-  HTTPResult put(const char* url, const IHTTPDataOut& dataOut, IHTTPDataIn* pDataIn, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
-  
-  /** Execute a DELETE request on the URL
-  Blocks until completion
-  @param url : url on which to execute the request
-  @param pDataIn : pointer to an IHTTPDataIn instance that will collect the data returned by the request, can be NULL
-  @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
-  @return 0 on success, HTTP error (<0) on failure
-  */
-  HTTPResult del(const char* url, IHTTPDataIn* pDataIn, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
-  
-  /** Get last request's HTTP response code
-  @return The HTTP response code of the last request
-  */
-  int getHTTPResponseCode();
-  
+    /**
+    Provides a basic authentification feature (Base64 encoded username and password)
+    Pass two NULL pointers to switch back to no authentication
+    @param user username to use for authentication, must remain valid durlng the whole HTTP session
+    @param user password to use for authentication, must remain valid durlng the whole HTTP session
+    */
+    HTTPResult basicAuth(const char* user, const char* password); //Basic Authentification
+
+    //High Level setup functions
+    /** Execute a GET request on the URL
+    Blocks until completion
+    @param url : url on which to execute the request
+    @param pDataIn : pointer to an IHTTPDataIn instance that will collect the data returned by the request, can be NULL
+    @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
+    @return 0 on success, HTTP error (<0) on failure
+    */
+    HTTPResult get(const char* url, IHTTPDataIn* pDataIn, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
+
+    /** Execute a GET request on the URL
+    Blocks until completion
+    This is a helper to directly get a piece of text from a HTTP result
+    @param url : url on which to execute the request
+    @param result : pointer to a char array in which the result will be stored
+    @param maxResultLen : length of the char array (including space for the NULL-terminating char)
+    @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
+    @return 0 on success, HTTP error (<0) on failure
+    */
+    HTTPResult get(const char* url, char* result, size_t maxResultLen, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
+
+    /** Execute a POST request on the URL
+    Blocks until completion
+    @param url : url on which to execute the request
+    @param dataOut : a IHTTPDataOut instance that contains the data that will be posted
+    @param pDataIn : pointer to an IHTTPDataIn instance that will collect the data returned by the request, can be NULL
+    @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
+    @return 0 on success, HTTP error (<0) on failure
+    */
+    HTTPResult post(const char* url, const IHTTPDataOut& dataOut, IHTTPDataIn* pDataIn, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
+
+    /** Execute a PUT request on the URL
+    Blocks until completion
+    @param url : url on which to execute the request
+    @param dataOut : a IHTTPDataOut instance that contains the data that will be put
+    @param pDataIn : pointer to an IHTTPDataIn instance that will collect the data returned by the request, can be NULL
+    @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
+    @return 0 on success, HTTP error (<0) on failure
+    */
+    HTTPResult put(const char* url, const IHTTPDataOut& dataOut, IHTTPDataIn* pDataIn, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
+
+    /** Execute a DELETE request on the URL
+    Blocks until completion
+    @param url : url on which to execute the request
+    @param pDataIn : pointer to an IHTTPDataIn instance that will collect the data returned by the request, can be NULL
+    @param timeout waiting timeout in ms (osWaitForever for blocking function, not recommended)
+    @return 0 on success, HTTP error (<0) on failure
+    */
+    HTTPResult del(const char* url, IHTTPDataIn* pDataIn, int timeout = HTTP_CLIENT_DEFAULT_TIMEOUT); //Blocking
+
+    /** Get last request's HTTP response code
+    @return The HTTP response code of the last request
+    */
+    int getHTTPResponseCode();
+
+    void setHeader(const char *header) ;   /* set http headers */
+    void dumpReqHeader(bool sw) ;          /* switch on dumpling request headers */
+    void dumpResHeader(bool sw) ;          /* switch on dumpling response headers */
+    HTTPResult setSSLversion(int minorV) ; /* set SSL/TLS version. 0: SSL3, 1: TLS1.0, 2: TLS1.1, 3: TLS1.2 */
+    void setLocationBuf(char *url, int size) ; /* set URL buffer for redirection */
+
 private:
-  enum HTTP_METH
-  {
-    HTTP_GET,
-    HTTP_POST,
-    HTTP_PUT,
-    HTTP_DELETE,
-    HTTP_HEAD
-  };
+    enum HTTP_METH {
+        HTTP_GET,
+        HTTP_POST,
+        HTTP_PUT,
+        HTTP_DELETE,
+        HTTP_HEAD
+    };
 
-  HTTPResult connect(const char* url, HTTP_METH method, IHTTPDataOut* pDataOut, IHTTPDataIn* pDataIn, int timeout); //Execute request
-  HTTPResult recv(char* buf, size_t minLen, size_t maxLen, size_t* pReadLen); //0 on success, err code on failure
-  HTTPResult send(char* buf, size_t len = 0); //0 on success, err code on failure
-  HTTPResult parseURL(const char* url, char* scheme, size_t maxSchemeLen, char* host, size_t maxHostLen, uint16_t* port, char* path, size_t maxPathLen); //Parse URL
+    HTTPResult connect(const char* url, HTTP_METH method, IHTTPDataOut* pDataOut, IHTTPDataIn* pDataIn, int timeout); //Execute request
+    HTTPResult recv(char* buf, size_t minLen, size_t maxLen, size_t* pReadLen); //0 on success, err code on failure
+    HTTPResult send(char* buf, size_t len = 0); //0 on success, err code on failure
+    HTTPResult flush(void); //0 on success, err code on failure
+    HTTPResult parseURL(const char* url, char* scheme, size_t maxSchemeLen, char* host, size_t maxHostLen, uint16_t* port, char* path, size_t maxPathLen); //Parse URL
+    void wolfssl_free(void) ;
+    HTTPResult bAuth(void) ;
+    
+    //Parameters
 
-  //Parameters
-  TCPSocket m_sock;
-  
-  int m_is_connected;
-  int m_timeout;
+    int m_timeout;
+    bool m_is_connected;
 
-  const char* m_basicAuthUser;
-  const char* m_basicAuthPassword;
-  int m_httpResponseCode;
+    const char* m_basicAuthUser;
+    const char* m_basicAuthPassword;
+    int m_httpResponseCode;
 
+    const char * header ;
+    char * redirect_url ;
+    int    redirect_url_size ;
+    int    redirect ;
+    bool   dumpReqH ;
+    bool   dumpResH ;
+    
+    /* for wolfSSL */
+    int    SSLver ;
+    uint16_t port;
+    struct WOLFSSL_CTX* ctx ;
+    struct WOLFSSL    * ssl ;
 };
 
 //Including data containers here for more convenience

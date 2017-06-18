@@ -1,4 +1,4 @@
-﻿
+
 #include "RobotControl.h"
 
 #include "common.h"
@@ -178,12 +178,12 @@ bool RobotControl::powerOn()
                   fread( &buf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)], 1, len, fp);
                   fclose(fp);
                   memcpy(&buf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len], e_boundary, strlen(e_boundary));
-
+                  
                   // make http request
                   //HttpRequest* request = new HttpRequest(m_pWifiInterface, HTTP_POST, WATSON_POST_URL);
                   HttpRequest* request = new HttpRequest(m_pWifiInterface, HTTP_POST, "http://104.199.222.173/r-king/space/webapi.php");
                   //HttpRequest* request = new HttpRequest(m_pWifiInterface, HTTP_POST, "http://httpbin.org/post");
-      
+ 
                   request->set_header("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryZRUHAuSd1pDiYfK5");
                   request->set_header("Connection", "keep-alive");
                   request->set_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36");
@@ -193,10 +193,17 @@ bool RobotControl::powerOn()
                   // send request
                   response = request->send(buf, strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary));
                   log("POCHI", LOGLEVEL_INFO, "POST FILE SIZE = %d\r\n", strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary));
-
-                  log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response->get_status_code(), response->get_status_message().c_str());
-                  log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[%s]\r\n", response->get_body_as_string().c_str());
-    
+                  
+                  if(response != NULL)
+                  {
+                      log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response->get_status_code(), response->get_status_message().c_str());
+                      log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[%s]\r\n", response->get_body_as_string().c_str());
+                  }
+                  else
+                  {
+                      log("POCHI", LOGLEVEL_WARN, "RESPONSE IS NULL!\r\n");
+                  }
+                   
                   delete request; // also clears out the response
                   delete[] buf;
               }

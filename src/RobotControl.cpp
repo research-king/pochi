@@ -1,4 +1,4 @@
-﻿
+
 #include "RobotControl.h"
 
 #include "common.h"
@@ -16,6 +16,8 @@
 static char g_ssid[PATH_MAX];
 static char g_pass[PATH_MAX];
 static char g_post_url[PATH_MAX];
+
+bool is_connect_wifi = false;
 
 /**
  * コンストラクタ
@@ -52,7 +54,7 @@ bool RobotControl::isConnectWifi()
  */
 bool RobotControl::connectWifi()
 {
-    if (isConnectWifi() == true)
+    if (is_connect_wifi == true)
     {
         return true;
     }
@@ -130,7 +132,8 @@ bool RobotControl::connectWifi()
         m_pWifiInterface->get_rssi());
 
     Thread::wait(1000);
-
+    
+    is_connect_wifi = true;
     return true;
 }
 
@@ -201,16 +204,19 @@ bool RobotControl::powerOn()
                   char s_conttype[] = "Content-Type: image/jpeg\r\n\r\n";
                   char e_boundary[] = "\r\n------WebKitFormBoundaryZRUHAuSd1pDiYfK5--";
 
-                  char *buf = new char[len+strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+strlen(e_boundary)];
-                  memcpy(buf, s_boundary, strlen(s_boundary));
-                  memcpy(&buf[strlen(s_boundary)], s_contdisp, strlen(s_contdisp));
-                  memcpy(&buf[strlen(s_boundary)+strlen(s_contdisp)], s_conttype, strlen(s_conttype));
-                  fread( &buf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)], 1, len, fp);
+                  char *reqbuf = new char[len+strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+strlen(e_boundary)];
+                  char *imgbuf = new char[len];
+                  
+                  memcpy(reqbuf, s_boundary, strlen(s_boundary));
+                  memcpy(&reqbuf[strlen(s_boundary)], s_contdisp, strlen(s_contdisp));
+                  memcpy(&reqbuf[strlen(s_boundary)+strlen(s_contdisp)], s_conttype, strlen(s_conttype));
+                  fread( imgbuf, 1, len, fp);
                   fclose(fp);
-                  memcpy(&buf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len], e_boundary, strlen(e_boundary));
+                  memcpy(&reqbuf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)], imgbuf, len);
+                  memcpy(&reqbuf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len], e_boundary, strlen(e_boundary));
                   
                   // make http request
-                  char* url;
+                  char *url;
                   
                   if( strlen(g_post_url) > 10 )
                   {
@@ -225,18 +231,84 @@ bool RobotControl::powerOn()
                   request->set_header("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryZRUHAuSd1pDiYfK5");
                   request->set_header("Connection", "keep-alive");
                   request->set_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36");
-                  //request->set_header("Referer", "http://104.199.222.173/r-king/space/sendfiletest.php");
                   HttpResponse* response;
                   
                   // send request
-                  response = request->send(buf, strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary));
+                  response = request->send(reqbuf, strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary));
                   log("POCHI", LOGLEVEL_INFO, "POST FILE SIZE = %d\r\n", strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary));
-                  
+
                   if(response != NULL)
                   {
+
+                      
                       log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response->get_status_code(), response->get_status_message().c_str());
                       log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[%s]\r\n", response->get_body_as_string().c_str());
                       //printf("RESPONSE body is:\r\n[%s]\r\n", response->get_body_as_string().c_str());
+#if 0
+                      Thread::wait(2000);
+                      
+                      char *watson_resp = (char*)response->get_body_as_string().c_str();
+                      printf("watson_resp:%d\r\n", strlen(watson_resp));
+                      
+                      int sendlen = strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary);
+                      
+                      char s_jsondisp[] = "Content-Disposition: form-data; name=\"jsonString\"; filename=\"jsonString.json\"\r\n";
+                      char s_jsontype[] = "Content-Type: application/json\r\n\r\n";
+                      
+                      char *reqbuf2 = new char[sendlen+strlen(s_boundary)+strlen(s_jsondisp)+strlen(s_jsontype)+strlen(watson_resp)+strlen(s_boundary)];
+                      int reqlen;
+                      
+                      memcpy(reqbuf2, s_boundary, reqlen);
+                      reqlen = strlen(s_boundary);
+                      
+                      memcpy(&reqbuf2[reqlen], s_jsondisp, strlen(s_jsondisp));
+                      reqlen += strlen(s_jsondisp);
+                      
+                      memcpy(&reqbuf2[reqlen], s_jsontype, strlen(s_jsontype));
+                      reqlen += strlen(s_jsontype);
+                      
+                      memcpy(&reqbuf2[reqlen], watson_resp, strlen(watson_resp));
+                      reqlen += strlen(watson_resp);
+                      
+                      memcpy(&reqbuf2[reqlen], s_boundary, strlen(s_boundary));
+                      reqlen += strlen(s_boundary);
+                      
+                      memcpy(&reqbuf2[reqlen], s_contdisp, strlen(s_contdisp));
+                      reqlen += strlen(s_contdisp);
+                      
+                      memcpy(&reqbuf2[reqlen], s_conttype, strlen(s_conttype));
+                      reqlen += strlen(s_conttype);
+                      
+                      memcpy(&reqbuf2[reqlen], imgbuf, len);
+                      reqlen += len;
+                      
+                      memcpy(&reqbuf2[reqlen], e_boundary, strlen(e_boundary));
+                      reqlen += strlen(e_boundary);
+
+                      //HttpRequest* request2 = new HttpRequest(m_pWifiInterface, HTTP_POST, "http://posttestserver.com/post.php");
+                      log("POCHI", LOGLEVEL_INFO, "MAKE REQ\r\n");
+                      HttpRequest* request2 = new HttpRequest(m_pWifiInterface, HTTP_POST, "http://104.199.222.173/r-king/pochi/webapi.php");
+                      request2->set_header("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryZRUHAuSd1pDiYfK5");
+                      request2->set_header("Connection", "keep-alive");
+                      request2->set_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36");
+                      HttpResponse* response2;
+                      
+                      log("POCHI", LOGLEVEL_INFO, "SEND REQ\r\n");
+                      response2 = request2->send(reqbuf2, reqlen);
+                      
+                      if(response2 != NULL)
+                      {
+                        log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response2->get_status_code(), response2->get_status_message().c_str());
+                        log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[%s]\r\n", response2->get_body_as_string().c_str());
+                        //printf("RESPONSE body is:\r\n[%s]\r\n", response2->get_body_as_string().c_str());
+                      }
+                      else
+                      {
+                        log("POCHI", LOGLEVEL_WARN, "RESPONSE2 IS NULL!\r\n");
+                      }
+                      delete request2;
+                      delete[] reqbuf2;
+#endif
                   }
                   else
                   {
@@ -244,11 +316,12 @@ bool RobotControl::powerOn()
                   }
                    
                   delete request; // also clears out the response
-                  delete[] buf;
+                  delete[] reqbuf;
+                  delete[] imgbuf;
               }
           }
       }
-      Thread::wait(20000);
+      Thread::wait(10000);
     }
     return true;
 }

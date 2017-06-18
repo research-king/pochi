@@ -1,4 +1,4 @@
-
+﻿
 #include "RobotControl.h"
 
 #include "common.h"
@@ -80,7 +80,35 @@ bool RobotControl::connectWifi()
     //-----------------------------------
     while (1)
     {
-        int ret = m_pWifiInterface->connect(TEST_WIFI_SSID, TEST_WIFI_PASS, NSAPI_SECURITY_WPA2);
+        int ret = 0;
+        FILE *fp = fopen("/" MOUNT_NAME "/lychee_config.txt", "r");
+        char ssid[32];
+        char pass[32];
+        if( fp != NULL)
+        {
+          fgets(ssid, 32, fp);
+          fgets(pass, 32, fp);
+          fclose(fp);
+          if( ssid[strlen(ssid)-2] == '\r')
+          {
+            // CR-LF
+            ssid[strlen(ssid)-2] = '\0';
+            pass[strlen(pass)-2] = '\0';
+          }
+          else
+          {
+            // LF
+          ssid[strlen(ssid)-1] = '\0';
+          pass[strlen(pass)-1] = '\0';
+          }
+          
+          ret = m_pWifiInterface->connect(ssid, pass, NSAPI_SECURITY_WPA2);
+        }
+        else
+        {
+          // default ssid
+          ret = m_pWifiInterface->connect(TEST_WIFI_SSID, TEST_WIFI_PASS, NSAPI_SECURITY_WPA2);
+        }
         if (ret != 0)
         {
             log("POCHI", LOGLEVEL_ERROR, "WIFI CONNECT ERROR. SSID=%s, PASS=%s, ret=%d\r\n", 

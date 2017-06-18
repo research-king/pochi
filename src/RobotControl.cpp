@@ -7,14 +7,15 @@
 #include "TCPSocket.h"
 #include "http_request.h"
 
-//#define WATSON_POST_URL "https://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=b59c9434aebd9ab825d1b015f31266475bbf9cd3&version=2016-05-20"
 #define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=c3659879198b8ccb65af7464b051a13a08567fb0&version=2016-05-2"
 #define WATSON_GET_URL "https://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=b59c9434aebd9ab825d1b015f31266475bbf9cd3&url=http://weekly.ascii.jp/elem/000/000/346/346250/1032kanna-top_1200x.jpg&version=2016-05-19"
 
 #define TEST_WIFI_SSID "4CE67630E22B"
 #define TEST_WIFI_PASS "t3340pn5mkmkh"
-#define TEST_TCP_IPADDR "172.20.10.4"
-#define TEST_TCP_PORT 12345
+
+static char g_ssid[PATH_MAX];
+static char g_pass[PATH_MAX];
+static char g_post_url[PATH_MAX];
 
 /**
  * コンストラクタ
@@ -82,27 +83,28 @@ bool RobotControl::connectWifi()
     {
         int ret = 0;
         FILE *fp = fopen("/" MOUNT_NAME "/lychee_config.txt", "r");
-        char ssid[32];
-        char pass[32];
         if( fp != NULL)
         {
-          fgets(ssid, 32, fp);
-          fgets(pass, 32, fp);
+          fgets(g_ssid, PATH_MAX, fp);
+          fgets(g_pass, PATH_MAX, fp);
+          fgets(g_post_url, PATH_MAX, fp);
           fclose(fp);
-          if( ssid[strlen(ssid)-2] == '\r')
+          if( g_ssid[strlen(g_ssid)-2] == '\r')
           {
             // CR-LF
-            ssid[strlen(ssid)-2] = '\0';
-            pass[strlen(pass)-2] = '\0';
+            g_ssid[strlen(g_ssid)-2] = '\0';
+            g_pass[strlen(g_pass)-2] = '\0';
+            g_post_url[strlen(g_post_url)-2] = '\0';
           }
           else
           {
             // LF
-          ssid[strlen(ssid)-1] = '\0';
-          pass[strlen(pass)-1] = '\0';
+            g_ssid[strlen(g_ssid)-1] = '\0';
+            g_pass[strlen(g_pass)-1] = '\0';
+            g_post_url[strlen(g_post_url)-1] = '\0';
           }
           
-          ret = m_pWifiInterface->connect(ssid, pass, NSAPI_SECURITY_WPA2);
+          ret = m_pWifiInterface->connect(g_ssid, g_pass, NSAPI_SECURITY_WPA2);
         }
         else
         {
@@ -176,7 +178,7 @@ bool RobotControl::powerOn()
       //-----------------------------------
       if (m_pCameraControl != NULL)
       {
-          char filename[32];
+          char filename[PATH_MAX];
           sprintf(filename, "/" MOUNT_NAME "/img%d.jpg", filecnt++);
           if (m_pCameraControl->takeCamera(filename) == 1)
           {
@@ -208,9 +210,17 @@ bool RobotControl::powerOn()
                   memcpy(&buf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len], e_boundary, strlen(e_boundary));
                   
                   // make http request
-                  //HttpRequest* request = new HttpRequest(m_pWifiInterface, HTTP_POST, WATSON_POST_URL);
-                  HttpRequest* request = new HttpRequest(m_pWifiInterface, HTTP_POST, "http://104.199.222.173/r-king/space/webapi.php");
-                  //HttpRequest* request = new HttpRequest(m_pWifiInterface, HTTP_POST, "http://httpbin.org/post");
+                  char* url;
+                  
+                  if( strlen(g_post_url) > 10 )
+                  {
+                    url = (char*)g_post_url;
+                  }
+                  else
+                  {
+                    url = (char*)WATSON_POST_URL;
+                  }
+                  HttpRequest* request = new HttpRequest(m_pWifiInterface, HTTP_POST, url);
  
                   request->set_header("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryZRUHAuSd1pDiYfK5");
                   request->set_header("Connection", "keep-alive");
@@ -226,6 +236,7 @@ bool RobotControl::powerOn()
                   {
                       log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response->get_status_code(), response->get_status_message().c_str());
                       log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[%s]\r\n", response->get_body_as_string().c_str());
+                      //printf("RESPONSE body is:\r\n[%s]\r\n", response->get_body_as_string().c_str());
                   }
                   else
                   {

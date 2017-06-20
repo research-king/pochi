@@ -20,8 +20,8 @@
 
 /*! Frame buffer stride: Frame buffer stride should be set to a multiple of 32 or 128
     in accordance with the frame buffer burst transfer mode. */
-#define VIDEO_PIXEL_HW (640u) /* VGA */
-#define VIDEO_PIXEL_VW (480u) /* VGA */
+#define VIDEO_PIXEL_HW 320u //(640u) /* VGA */
+#define VIDEO_PIXEL_VW 240u //(480u) /* VGA */
 
 #define FRAME_BUFFER_STRIDE (((VIDEO_PIXEL_HW * DATA_SIZE_PER_PIC) + 31u) & ~31u)
 #define FRAME_BUFFER_HEIGHT (VIDEO_PIXEL_VW)
@@ -130,3 +130,4 @@ unsigned char CameraControl::takeCamera(const char *filename)
     DEBUG_PRINT("CameraControl:takeCamera SUCCESS\r\n");
     return 1;
 }
+

@@ -6,6 +6,7 @@
 #include "CameraControl.h"
 
 #include "ESP32Interface.h"
+#include "http_request.h"
 
 class RobotControl
 {
@@ -19,6 +20,7 @@ private:
   MotorControl* m_pMotorControl;
   CameraControl* m_pCameraControl;
   ESP32Interface* m_pWifiInterface;
+  HttpRequest *m_HttpRequest;
 
   bool isConnectWifi(void);
   bool connectWifi(void);
@@ -34,4 +36,6 @@ private:
   bool playDance(void);
   bool playSong(void);
 
+  string postImageFileToServer(const char *url, const char *filename);
+  string postMultiFileToServer(const char *url, const char *filename, const char *filename2);
 };

@@ -10,7 +10,7 @@
 #include <RawSerial.h>
 
 #define LOGCOLORENABLE  1
-#define LOGSTRINGMAX    256
+#define LOGSTRINGMAX    1024
 
 static RawSerial pc(USBTX, USBRX, 115200);
 
@@ -63,7 +63,7 @@ void log(const char *tag, LOG_LEVEL level, const char *str, ...)
         break;
     case LOGLEVEL_WARN:
 #if LOGCOLORENABLE
-        pc.printf("\e[33m[%s][E] %s\e[m", tag, buf); // 文字を黄色に
+        pc.printf("\e[33m[%s][W] %s\e[m", tag, buf); // 文字を黄色に
 #else
         pc.printf("[%s][W] %s", tag, buf);
 #endif

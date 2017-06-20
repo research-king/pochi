@@ -5,13 +5,15 @@
 #include "logprint.h"
 
 #include "TCPSocket.h"
-#include "http_request.h"
 
 #define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=c3659879198b8ccb65af7464b051a13a08567fb0&version=2016-05-2"
-#define WATSON_GET_URL "https://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=b59c9434aebd9ab825d1b015f31266475bbf9cd3&url=http://weekly.ascii.jp/elem/000/000/346/346250/1032kanna-top_1200x.jpg&version=2016-05-19"
+#define RKING_POST_URL "http://104.199.222.173/r-king/watson/webapi.php"
 
-#define TEST_WIFI_SSID "4CE67630E22B"
-#define TEST_WIFI_PASS "t3340pn5mkmkh"
+#define TEST_WIFI_SSID "S0512"
+#define TEST_WIFI_PASS "0793353721"
+
+//#define TEST_WIFI_SSID "4CE67630E22B"
+//#define TEST_WIFI_PASS "t3340pn5mkmkh"
 
 static char g_ssid[PATH_MAX];
 static char g_pass[PATH_MAX];
@@ -65,76 +67,202 @@ bool RobotControl::connectWifi()
     }
 
     //-----------------------------------
-    // AP SCAN
-    //-----------------------------------
-    WiFiAccessPoint ap[10]; /* Limit number of network arbitrary to 10 */
-
-    int count = m_pWifiInterface->scan(ap, 10);
-    for (int i = 0; i < count; i++)
-    {
-        log("POCHI", LOGLEVEL_INFO, "WIFI STATION: %s RSSI: %hhd Ch: %hhd\r\n", ap[i].get_ssid(),
-            ap[i].get_rssi(), ap[i].get_channel());
-    }
-
-    Thread::wait(1000);
-
-    //-----------------------------------
     // AP接続
     //-----------------------------------
-    while (1)
+    memset(g_ssid, 0, sizeof(g_ssid));
+    memset(g_pass, 0, sizeof(g_pass));
+    memset(g_post_url, 0, sizeof(g_post_url));
+
+    FILE *fp = fopen("/" MOUNT_NAME "/lychee_config.txt", "r");
+    if (fp != NULL)
     {
-        int ret = 0;
-        FILE *fp = fopen("/" MOUNT_NAME "/lychee_config.txt", "r");
-        if( fp != NULL)
+        fgets(g_ssid, PATH_MAX, fp);
+        fgets(g_pass, PATH_MAX, fp);
+        fgets(g_post_url, PATH_MAX, fp);
+        fclose(fp);
+        if (g_ssid[strlen(g_ssid) - 2] == '\r')
         {
-          fgets(g_ssid, PATH_MAX, fp);
-          fgets(g_pass, PATH_MAX, fp);
-          fgets(g_post_url, PATH_MAX, fp);
-          fclose(fp);
-          if( g_ssid[strlen(g_ssid)-2] == '\r')
-          {
             // CR-LF
-            g_ssid[strlen(g_ssid)-2] = '\0';
-            g_pass[strlen(g_pass)-2] = '\0';
-            g_post_url[strlen(g_post_url)-2] = '\0';
-          }
-          else
-          {
-            // LF
-            g_ssid[strlen(g_ssid)-1] = '\0';
-            g_pass[strlen(g_pass)-1] = '\0';
-            g_post_url[strlen(g_post_url)-1] = '\0';
-          }
-          
-          ret = m_pWifiInterface->connect(g_ssid, g_pass, NSAPI_SECURITY_WPA2);
+            g_ssid[strlen(g_ssid) - 2] = '\0';
+            g_pass[strlen(g_pass) - 2] = '\0';
+            g_post_url[strlen(g_post_url) - 2] = '\0';
         }
         else
         {
-          // default ssid
-          ret = m_pWifiInterface->connect(TEST_WIFI_SSID, TEST_WIFI_PASS, NSAPI_SECURITY_WPA2);
+            // LF
+            g_ssid[strlen(g_ssid) - 1] = '\0';
+            g_pass[strlen(g_pass) - 1] = '\0';
+            g_post_url[strlen(g_post_url) - 1] = '\0';
         }
+    }
+    else
+    {
+        strcpy(g_ssid, TEST_WIFI_SSID);
+        strcpy(g_pass, TEST_WIFI_PASS);
+        strcpy(g_post_url, WATSON_POST_URL);
+    }
+
+    while (1)
+    {
+        log("POCHI", LOGLEVEL_INFO, "WIFI CONNECTING... SSID=%s, PASS=%s\r\n",
+            g_ssid,
+            g_pass);
+
+        int ret = 0;
+
+        // APサーチ開始
+        WiFiAccessPoint ap[10]; /* Limit number of network arbitrary to 10 */
+
+        int count = m_pWifiInterface->scan(ap, 10);
+        int existap = -1;
+        for (int i = 0; i < count; i++)
+        {
+            if (strcmp(ap[i].get_ssid(), g_ssid) == 0)
+            {
+                log("POCHI", LOGLEVEL_MARK, "WIFI STATION: %s RSSI: %hhd\r\n", ap[i].get_ssid(),
+                    ap[i].get_rssi());
+
+                existap = i;
+            }
+            else
+            {
+                log("POCHI", LOGLEVEL_INFO, "WIFI STATION: %s RSSI: %hhd\r\n", ap[i].get_ssid(),
+                    ap[i].get_rssi());
+            }
+        }
+
+        // APサーチ成功
+        if (existap >= 0)
+        {
+            log("POCHI", LOGLEVEL_MARK, "WIFI AP FIND SUCCESS. SSID=%s, PASS=%s\r\n",
+                g_ssid,
+                g_pass);
+        }
+        else
+        {
+            log("POCHI", LOGLEVEL_WARN, "WIFI AP NOT FOUND. SSID=%s, PASS=%s\r\n",
+                g_ssid,
+                g_pass);            
+        }
+
+        ret = m_pWifiInterface->connect(g_ssid, g_pass, NSAPI_SECURITY_WPA2);
+
         if (ret != 0)
         {
-            log("POCHI", LOGLEVEL_ERROR, "WIFI CONNECT ERROR. SSID=%s, PASS=%s, ret=%d\r\n", 
-                TEST_WIFI_SSID, 
-                TEST_WIFI_PASS, 
+            log("POCHI", LOGLEVEL_ERROR, "WIFI CONNECT ERROR. SSID=%s, PASS=%s, ret=%d\r\n",
+                g_ssid,
+                g_pass,
                 ret);
         }
         else
         {
             break;
         }
-        Thread::wait(5000);
+
+        Thread::wait(1000);
     }
 
     log("POCHI", LOGLEVEL_MARK, "WIFI CONNECTED. IP=%s, RSSI=%d\r\n",
         m_pWifiInterface->get_ip_address(),
         m_pWifiInterface->get_rssi());
 
-    Thread::wait(1000);
-    
     is_connect_wifi = true;
+
     return true;
+}
+
+/**
+ * ファイルポスト処理
+ * @param
+ * @return
+ */
+string RobotControl::postImageFileToServer(const char *url, const char *filename)
+{
+    string resultstr = "";
+
+    //-----------------------------------
+    // 撮影した画像をネット送信
+    //-----------------------------------
+    FILE *fp = fopen(filename, "r");
+    if (fp != NULL)
+    {
+        fseek(fp, 0, SEEK_END);
+        int len = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        log("POCHI", LOGLEVEL_DEBUG, "IMAGE FILE SIZE = %d\r\n", len);
+
+        // create post header
+        char s_boundary[] = "------WebKitFormBoundaryZRUHAuSd1pDiYfK5\r\n";
+        char s_contdisp[] = "Content-Disposition: form-data; name=\"image\"; filename=\"cam_000.jpg\"\r\n";
+        char s_conttype[] = "Content-Type: image/jpeg\r\n\r\n";
+        char e_boundary[] = "\r\n------WebKitFormBoundaryZRUHAuSd1pDiYfK5--";
+
+        char *reqbuf = new char[len + strlen(s_boundary) + strlen(s_contdisp) + strlen(s_conttype) + strlen(e_boundary)];
+        char *imgbuf = new char[len];
+
+        memcpy(reqbuf, s_boundary, strlen(s_boundary));
+        memcpy(&reqbuf[strlen(s_boundary)], s_contdisp, strlen(s_contdisp));
+        memcpy(&reqbuf[strlen(s_boundary) + strlen(s_contdisp)], s_conttype, strlen(s_conttype));
+        fread(imgbuf, 1, len, fp);
+        fclose(fp);
+        memcpy(&reqbuf[strlen(s_boundary) + strlen(s_contdisp) + strlen(s_conttype)], imgbuf, len);
+        memcpy(&reqbuf[strlen(s_boundary) + strlen(s_contdisp) + strlen(s_conttype) + len], e_boundary, strlen(e_boundary));
+
+        // make http request
+
+        log("POCHI", LOGLEVEL_MARK, "SEND POST. url=%s\r\n", url);
+
+        m_HttpRequest = new HttpRequest(m_pWifiInterface, HTTP_POST, url);
+
+        m_HttpRequest->set_header("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryZRUHAuSd1pDiYfK5");
+        m_HttpRequest->set_header("Connection", "keep-alive");
+        m_HttpRequest->set_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36");
+        HttpResponse *response;
+
+        // send request
+        response = m_HttpRequest->send(reqbuf, strlen(s_boundary) + strlen(s_contdisp) + strlen(s_conttype) + len + strlen(e_boundary));
+        log("POCHI", LOGLEVEL_INFO, "POST FILE SIZE = %d\r\n", strlen(s_boundary) + strlen(s_contdisp) + strlen(s_conttype) + len + strlen(e_boundary));
+
+        delete[] reqbuf;
+        delete[] imgbuf;
+
+        if (response != NULL)
+        {
+            log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response->get_status_code(), response->get_status_message().c_str());
+            log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[len=%d][%s]\r\n",
+                response->get_body_as_string().size(),
+                response->get_body_as_string().c_str());
+
+            resultstr += response->get_body_as_string();
+        }
+        else
+        {
+            log("POCHI", LOGLEVEL_WARN, "RESPONSE IS NULL!\r\n");
+        }
+
+        delete response;
+        delete m_HttpRequest; // also clears out the response        
+    }
+    else
+    {
+        log("POCHI", LOGLEVEL_ERROR, "SEND FILE NOT FOUND!\r\n");
+    }
+
+    return resultstr;
+}
+
+/**
+ * 複数ファイルポスト処理
+ * @param
+ * @return
+ */
+string RobotControl::postMultiFileToServer(const char *url, const char *filename, const char* filename2)
+{
+    string resultstr = "";
+
+    // TODO:
+
+    return resultstr;
 }
 
 /**
@@ -172,156 +300,48 @@ bool RobotControl::powerOn()
     //-----------------------------------
     // メイン処理
     //-----------------------------------
-    
-    
+
     while (m_isLife)
     {
-      //-----------------------------------
-      // カメラ撮影
-      //-----------------------------------
-      if (m_pCameraControl != NULL)
-      {
-          char filename[PATH_MAX];
-          sprintf(filename, "/" MOUNT_NAME "/img%d.jpg", filecnt++);
-          if (m_pCameraControl->takeCamera(filename) == 1)
-          {
-              log("POCHI", LOGLEVEL_INFO, "CAMERA TAKE PICTURE SUCCESS. %s\r\n", filename);
+        //-----------------------------------
+        // カメラ撮影
+        //-----------------------------------
+        if (m_pCameraControl != NULL)
+        {
+            char filename[PATH_MAX];
+            sprintf(filename, "/" MOUNT_NAME "/img%d.jpg", filecnt++);
+            if (m_pCameraControl->takeCamera(filename) == 1)
+            {
+                log("POCHI", LOGLEVEL_INFO, "CAMERA TAKE PICTURE SUCCESS. %s\r\n", filename);
 
-              //-----------------------------------
-              // 撮影した画像をネット送信
-              //-----------------------------------
-              FILE *fp = fopen(filename, "r");
-              if (fp != NULL)
-              {
-                  fseek(fp, 0, SEEK_END);
-                  int len = ftell(fp);
-                  fseek(fp, 0, SEEK_SET); 
-                  log("POCHI", LOGLEVEL_INFO, "IMAGE FILE SIZE = %d\r\n", len);
+                string response;
 
-                  // create post header
-                  char s_boundary[] = "------WebKitFormBoundaryZRUHAuSd1pDiYfK5\r\n";
-                  char s_contdisp[] = "Content-Disposition: form-data; name=\"image\"; filename=\"cam_000.jpg\"\r\n";
-                  char s_conttype[] = "Content-Type: image/jpeg\r\n\r\n";
-                  char e_boundary[] = "\r\n------WebKitFormBoundaryZRUHAuSd1pDiYfK5--";
+                response = postImageFileToServer((char *)RKING_POST_URL, filename);
+                if (response.size() == 0 )
+                {
+                    log("POCHI", LOGLEVEL_ERROR, "HTTP POST FAILED! %d %s\r\n", response.size(), response.c_str());
+                }
+                else
+                {
+                    log("POCHI", LOGLEVEL_MARK, "HTTP POST SUCCESS!. reslen=%d\r\n", 
+                        response.size());
+                }
 
-                  char *reqbuf = new char[len+strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+strlen(e_boundary)];
-                  char *imgbuf = new char[len];
-                  
-                  memcpy(reqbuf, s_boundary, strlen(s_boundary));
-                  memcpy(&reqbuf[strlen(s_boundary)], s_contdisp, strlen(s_contdisp));
-                  memcpy(&reqbuf[strlen(s_boundary)+strlen(s_contdisp)], s_conttype, strlen(s_conttype));
-                  fread( imgbuf, 1, len, fp);
-                  fclose(fp);
-                  memcpy(&reqbuf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)], imgbuf, len);
-                  memcpy(&reqbuf[strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len], e_boundary, strlen(e_boundary));
-                  
-                  // make http request
-                  char *url;
-                  
-                  if( strlen(g_post_url) > 10 )
-                  {
-                    url = (char*)g_post_url;
-                  }
-                  else
-                  {
-                    url = (char*)WATSON_POST_URL;
-                  }
-                  HttpRequest* request = new HttpRequest(m_pWifiInterface, HTTP_POST, url);
- 
-                  request->set_header("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryZRUHAuSd1pDiYfK5");
-                  request->set_header("Connection", "keep-alive");
-                  request->set_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36");
-                  HttpResponse* response;
-                  
-                  // send request
-                  response = request->send(reqbuf, strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary));
-                  log("POCHI", LOGLEVEL_INFO, "POST FILE SIZE = %d\r\n", strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary));
+                Thread::wait(5000);
 
-                  if(response != NULL)
-                  {
-
-                      
-                      log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response->get_status_code(), response->get_status_message().c_str());
-                      log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[%s]\r\n", response->get_body_as_string().c_str());
-                      //printf("RESPONSE body is:\r\n[%s]\r\n", response->get_body_as_string().c_str());
-#if 0
-                      Thread::wait(2000);
-                      
-                      char *watson_resp = (char*)response->get_body_as_string().c_str();
-                      printf("watson_resp:%d\r\n", strlen(watson_resp));
-                      
-                      int sendlen = strlen(s_boundary)+strlen(s_contdisp)+strlen(s_conttype)+len+strlen(e_boundary);
-                      
-                      char s_jsondisp[] = "Content-Disposition: form-data; name=\"jsonString\"; filename=\"jsonString.json\"\r\n";
-                      char s_jsontype[] = "Content-Type: application/json\r\n\r\n";
-                      
-                      char *reqbuf2 = new char[sendlen+strlen(s_boundary)+strlen(s_jsondisp)+strlen(s_jsontype)+strlen(watson_resp)+strlen(s_boundary)];
-                      int reqlen;
-                      
-                      memcpy(reqbuf2, s_boundary, reqlen);
-                      reqlen = strlen(s_boundary);
-                      
-                      memcpy(&reqbuf2[reqlen], s_jsondisp, strlen(s_jsondisp));
-                      reqlen += strlen(s_jsondisp);
-                      
-                      memcpy(&reqbuf2[reqlen], s_jsontype, strlen(s_jsontype));
-                      reqlen += strlen(s_jsontype);
-                      
-                      memcpy(&reqbuf2[reqlen], watson_resp, strlen(watson_resp));
-                      reqlen += strlen(watson_resp);
-                      
-                      memcpy(&reqbuf2[reqlen], s_boundary, strlen(s_boundary));
-                      reqlen += strlen(s_boundary);
-                      
-                      memcpy(&reqbuf2[reqlen], s_contdisp, strlen(s_contdisp));
-                      reqlen += strlen(s_contdisp);
-                      
-                      memcpy(&reqbuf2[reqlen], s_conttype, strlen(s_conttype));
-                      reqlen += strlen(s_conttype);
-                      
-                      memcpy(&reqbuf2[reqlen], imgbuf, len);
-                      reqlen += len;
-                      
-                      memcpy(&reqbuf2[reqlen], e_boundary, strlen(e_boundary));
-                      reqlen += strlen(e_boundary);
-
-                      //HttpRequest* request2 = new HttpRequest(m_pWifiInterface, HTTP_POST, "http://posttestserver.com/post.php");
-                      log("POCHI", LOGLEVEL_INFO, "MAKE REQ\r\n");
-                      HttpRequest* request2 = new HttpRequest(m_pWifiInterface, HTTP_POST, "http://104.199.222.173/r-king/pochi/webapi.php");
-                      request2->set_header("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryZRUHAuSd1pDiYfK5");
-                      request2->set_header("Connection", "keep-alive");
-                      request2->set_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36");
-                      HttpResponse* response2;
-                      
-                      log("POCHI", LOGLEVEL_INFO, "SEND REQ\r\n");
-                      response2 = request2->send(reqbuf2, reqlen);
-                      
-                      if(response2 != NULL)
-                      {
-                        log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response2->get_status_code(), response2->get_status_message().c_str());
-                        log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[%s]\r\n", response2->get_body_as_string().c_str());
-                        //printf("RESPONSE body is:\r\n[%s]\r\n", response2->get_body_as_string().c_str());
-                      }
-                      else
-                      {
-                        log("POCHI", LOGLEVEL_WARN, "RESPONSE2 IS NULL!\r\n");
-                      }
-                      delete request2;
-                      delete[] reqbuf2;
-#endif
-                  }
-                  else
-                  {
-                      log("POCHI", LOGLEVEL_WARN, "RESPONSE IS NULL!\r\n");
-                  }
-                   
-                  delete request; // also clears out the response
-                  delete[] reqbuf;
-                  delete[] imgbuf;
-              }
-          }
-      }
-      Thread::wait(10000);
+                response = postImageFileToServer((char *)WATSON_POST_URL, filename);
+                if (response.size() == 0 )
+                {
+                    log("POCHI", LOGLEVEL_ERROR, "WATSON HTTP POST FAILED!\r\n");
+                }
+                else
+                {
+                    log("POCHI", LOGLEVEL_MARK, "WATSON HTTP POST SUCCESS!. reslen=%d\r\n", 
+                        response.size());
+                }
+            }
+        }
+        Thread::wait(5000);
     }
     return true;
 }

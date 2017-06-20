@@ -259,8 +259,95 @@ string RobotControl::postImageFileToServer(const char *url, const char *filename
 string RobotControl::postMultiFileToServer(const char *url, const char *filename, const char* filename2)
 {
     string resultstr = "";
+    const char* json_str = filename2;
 
-    // TODO:
+    FILE *fp = fopen(filename, "r");
+    if (fp != NULL)
+    {
+        fseek(fp, 0, SEEK_END);
+        int len = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        log("POCHI", LOGLEVEL_DEBUG, "IMAGE FILE SIZE = %d\r\n", len);
+
+        // create post header
+        char s_boundary[] = "------WebKitFormBoundaryZRUHAuSd1pDiYfK5\r\n";
+        char s_contdisp[] = "Content-Disposition: form-data; name=\"image\"; filename=\"cam_000.jpg\"\r\n";
+        char s_conttype[] = "Content-Type: image/jpeg\r\n\r\n";
+        char e_boundary[] = "\r\n------WebKitFormBoundaryZRUHAuSd1pDiYfK5--";
+        char s_jsondisp[] = "Content-Disposition: form-data; name=\"jsonString\"; filename=\"jsonString.json\"\r\n";
+        char s_jsontype[] = "Content-Type: application/json\r\n\r\n";
+        
+        int sendlen = strlen(s_boundary) + strlen(s_contdisp) + strlen(s_conttype) + len + strlen(e_boundary);
+        char *reqbuf = new char[sendlen+strlen(s_boundary)+strlen(s_jsondisp)+strlen(s_jsontype)+strlen(json_str)+strlen(s_boundary)];
+        char *imgbuf = new char[len];
+        
+        int  reqlen = 0;
+                      
+        memcpy(reqbuf, s_boundary, reqlen);
+        reqlen = strlen(s_boundary);
+
+        memcpy(&reqbuf[reqlen], s_jsondisp, strlen(s_jsondisp));
+        reqlen += strlen(s_jsondisp);
+
+        memcpy(&reqbuf[reqlen], s_jsontype, strlen(s_jsontype));
+        reqlen += strlen(s_jsontype);
+
+        memcpy(&reqbuf[reqlen], json_str, strlen(json_str));
+        reqlen += strlen(json_str);
+
+        memcpy(&reqbuf[reqlen], s_boundary, strlen(s_boundary));
+        reqlen += strlen(s_boundary);
+
+        memcpy(&reqbuf[reqlen], s_contdisp, strlen(s_contdisp));
+        reqlen += strlen(s_contdisp);
+
+        memcpy(&reqbuf[reqlen], s_conttype, strlen(s_conttype));
+        reqlen += strlen(s_conttype);
+
+        memcpy(&reqbuf[reqlen], imgbuf, len);
+        reqlen += len;
+
+        memcpy(&reqbuf[reqlen], e_boundary, strlen(e_boundary));
+        reqlen += strlen(e_boundary);
+
+        // make http request
+
+        log("POCHI", LOGLEVEL_MARK, "SEND POST. url=%s\r\n", url);
+
+        m_HttpRequest = new HttpRequest(m_pWifiInterface, HTTP_POST, url);
+
+        m_HttpRequest->set_header("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryZRUHAuSd1pDiYfK5");
+        m_HttpRequest->set_header("Connection", "keep-alive");
+        m_HttpRequest->set_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36");
+        HttpResponse* response;
+
+        // send request
+        response = m_HttpRequest->send(reqbuf, reqlen);
+        log("POCHI", LOGLEVEL_INFO, "POST FILE SIZE = %d\r\n", reqlen);
+        
+        delete[] reqbuf;
+        delete[] imgbuf;
+        
+        if (response != NULL)
+        {
+            log("POCHI", LOGLEVEL_INFO, "RESPONSE status is %d - %s\r\n", response->get_status_code(), response->get_status_message().c_str());
+            log("POCHI", LOGLEVEL_INFO, "RESPONSE body is:\r\n[len=%d][%s]\r\n",
+                response->get_body_as_string().size(),
+                response->get_body_as_string().c_str());
+
+            resultstr += response->get_body_as_string();
+        }
+        else
+        {
+            log("POCHI", LOGLEVEL_WARN, "RESPONSE IS NULL!\r\n");
+        }
+        delete response;
+        delete m_HttpRequest; // also clears out the response
+    }
+    else
+    {
+        log("POCHI", LOGLEVEL_ERROR, "SEND FILE NOT FOUND!\r\n");
+    }
 
     return resultstr;
 }
@@ -315,8 +402,9 @@ bool RobotControl::powerOn()
                 log("POCHI", LOGLEVEL_INFO, "CAMERA TAKE PICTURE SUCCESS. %s\r\n", filename);
 
                 string response;
+                string jsonstr;
 
-                response = postImageFileToServer((char *)RKING_POST_URL, filename);
+                response = postImageFileToServer((char *)WATSON_POST_URL, filename);
                 if (response.size() == 0 )
                 {
                     log("POCHI", LOGLEVEL_ERROR, "HTTP POST FAILED! %d %s\r\n", response.size(), response.c_str());
@@ -325,11 +413,12 @@ bool RobotControl::powerOn()
                 {
                     log("POCHI", LOGLEVEL_MARK, "HTTP POST SUCCESS!. reslen=%d\r\n", 
                         response.size());
+                    jsonstr = response;
                 }
 
                 Thread::wait(5000);
 
-                response = postImageFileToServer((char *)WATSON_POST_URL, filename);
+                response = postMultiFileToServer((char *)RKING_POST_URL, filename, jsonstr.c_str());
                 if (response.size() == 0 )
                 {
                     log("POCHI", LOGLEVEL_ERROR, "WATSON HTTP POST FAILED!\r\n");

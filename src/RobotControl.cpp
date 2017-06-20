@@ -1,4 +1,4 @@
-
+﻿
 #include "RobotControl.h"
 
 #include "common.h"
@@ -7,7 +7,8 @@
 #include "TCPSocket.h"
 
 #define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=c3659879198b8ccb65af7464b051a13a08567fb0&version=2016-05-2"
-#define RKING_POST_URL "http://104.199.222.173/r-king/watson/webapi.php"
+//#define RKING_POST_URL "http://posttestserver.com/post.php"
+#define RKING_POST_URL "http://104.199.222.173/r-king/watson/uploadapi.php"
 
 #define TEST_WIFI_SSID "S0512"
 #define TEST_WIFI_PASS "0793353721"
@@ -283,7 +284,7 @@ string RobotControl::postMultiFileToServer(const char *url, const char *filename
         
         int  reqlen = 0;
                       
-        memcpy(reqbuf, s_boundary, reqlen);
+        memcpy(reqbuf, s_boundary, strlen(s_boundary));
         reqlen = strlen(s_boundary);
 
         memcpy(&reqbuf[reqlen], s_jsondisp, strlen(s_jsondisp));
@@ -295,7 +296,12 @@ string RobotControl::postMultiFileToServer(const char *url, const char *filename
         memcpy(&reqbuf[reqlen], json_str, strlen(json_str));
         reqlen += strlen(json_str);
 
-        memcpy(&reqbuf[reqlen], s_boundary, strlen(s_boundary));
+        if(!(reqbuf[reqlen-1] == '\r' || reqbuf[reqlen-1] == '\n')){
+          memcpy(&reqbuf[reqlen], "\r\n", strlen("\r\n"));
+          reqlen += strlen("\r\n");
+        }
+
+        memcpy(&reqbuf[reqlen], s_boundary, strlen(s_boundary)); // s->e
         reqlen += strlen(s_boundary);
 
         memcpy(&reqbuf[reqlen], s_contdisp, strlen(s_contdisp));
@@ -304,6 +310,9 @@ string RobotControl::postMultiFileToServer(const char *url, const char *filename
         memcpy(&reqbuf[reqlen], s_conttype, strlen(s_conttype));
         reqlen += strlen(s_conttype);
 
+        fread(imgbuf, 1, len, fp);
+        fclose(fp);
+        
         memcpy(&reqbuf[reqlen], imgbuf, len);
         reqlen += len;
 

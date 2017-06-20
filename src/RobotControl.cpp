@@ -240,7 +240,7 @@ string RobotControl::postImageFileToServer(const char *url, const char *filename
             log("POCHI", LOGLEVEL_WARN, "RESPONSE IS NULL!\r\n");
         }
 
-        delete response;
+        //delete response;
         delete m_HttpRequest; // also clears out the response        
     }
     else
@@ -341,7 +341,7 @@ string RobotControl::postMultiFileToServer(const char *url, const char *filename
         {
             log("POCHI", LOGLEVEL_WARN, "RESPONSE IS NULL!\r\n");
         }
-        delete response;
+//        delete response;
         delete m_HttpRequest; // also clears out the response
     }
     else

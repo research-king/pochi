@@ -6,8 +6,9 @@
 
 #include "TCPSocket.h"
 
-#define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=c3659879198b8ccb65af7464b051a13a08567fb0&version=2016-05-2"
-//#define RKING_POST_URL "http://posttestserver.com/post.php"
+//#define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=35b8434adfad0549dcb8f12a34d79e99ffc29493&version=2016-05-20"
+#define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=35b8434adfad0549dcb8f12a34d79e99ffc29493&version=2016-05-20"
+#define TEST_POST_URL "http://posttestserver.com/post.php"
 #define RKING_POST_URL "http://104.199.222.173/r-king/watson/uploadapi.php"
 
 #define TEST_WIFI_SSID "S0512"
@@ -20,6 +21,7 @@ static char g_ssid[PATH_MAX];
 static char g_pass[PATH_MAX];
 static char g_post_url[PATH_MAX];
 
+#define watson_classid "{\r\n   \"classifier_ids\":[\r\n      \"CUSTOM_497729065\"\r\n      \r\n   ],\r\n \"threshold\":0.0}\r\n"
 bool is_connect_wifi = false;
 
 /**
@@ -194,7 +196,7 @@ string RobotControl::postImageFileToServer(const char *url, const char *filename
 
         // create post header
         char s_boundary[] = "------WebKitFormBoundaryZRUHAuSd1pDiYfK5\r\n";
-        char s_contdisp[] = "Content-Disposition: form-data; name=\"image\"; filename=\"cam_000.jpg\"\r\n";
+        char s_contdisp[] = "Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\r\n";
         char s_conttype[] = "Content-Type: image/jpeg\r\n\r\n";
         char e_boundary[] = "\r\n------WebKitFormBoundaryZRUHAuSd1pDiYfK5--";
 
@@ -262,47 +264,31 @@ string RobotControl::postMultiFileToServer(const char *url, const char *filename
     string resultstr = "";
     const char* json_str = filename2;
 
-    FILE *fp = fopen(filename, "r");
-    if (fp != NULL)
+    FILE *fp_jpeg = fopen(filename, "r");
+    if ( (fp_jpeg != NULL) )
     {
-        fseek(fp, 0, SEEK_END);
-        int len = ftell(fp);
-        fseek(fp, 0, SEEK_SET);
-        log("POCHI", LOGLEVEL_DEBUG, "IMAGE FILE SIZE = %d\r\n", len);
+        fseek(fp_jpeg, 0, SEEK_END);
+        int jpeg_len = ftell(fp_jpeg);
+        fseek(fp_jpeg, 0, SEEK_SET);
+        
+        log("POCHI", LOGLEVEL_DEBUG, "IMAGE FILE SIZE = %d\r\n", jpeg_len);
 
         // create post header
         char s_boundary[] = "------WebKitFormBoundaryZRUHAuSd1pDiYfK5\r\n";
-        char s_contdisp[] = "Content-Disposition: form-data; name=\"image\"; filename=\"cam_000.jpg\"\r\n";
+        char s_contdisp[] = "Content-Disposition: form-data; name=\"image_files\"; filename=\"cam_000.jpg\"\r\n";
         char s_conttype[] = "Content-Type: image/jpeg\r\n\r\n";
         char e_boundary[] = "\r\n------WebKitFormBoundaryZRUHAuSd1pDiYfK5--";
-        char s_jsondisp[] = "Content-Disposition: form-data; name=\"jsonString\"; filename=\"jsonString.json\"\r\n";
+        char s_jsondisp[] = "Content-Disposition: form-data; name=\"parameters\"; filename=\"watson.json\"\r\n";
         char s_jsontype[] = "Content-Type: application/json\r\n\r\n";
         
-        int sendlen = strlen(s_boundary) + strlen(s_contdisp) + strlen(s_conttype) + len + strlen(e_boundary);
+        int sendlen = strlen(s_boundary) + strlen(s_contdisp) + strlen(s_conttype) + jpeg_len + strlen(e_boundary);
         char *reqbuf = new char[sendlen+strlen(s_boundary)+strlen(s_jsondisp)+strlen(s_jsontype)+strlen(json_str)+strlen(s_boundary)];
-        char *imgbuf = new char[len];
+        char *imgbuf = new char[jpeg_len];
         
         int  reqlen = 0;
                       
         memcpy(reqbuf, s_boundary, strlen(s_boundary));
         reqlen = strlen(s_boundary);
-
-        memcpy(&reqbuf[reqlen], s_jsondisp, strlen(s_jsondisp));
-        reqlen += strlen(s_jsondisp);
-
-        memcpy(&reqbuf[reqlen], s_jsontype, strlen(s_jsontype));
-        reqlen += strlen(s_jsontype);
-
-        memcpy(&reqbuf[reqlen], json_str, strlen(json_str));
-        reqlen += strlen(json_str);
-
-        if(!(reqbuf[reqlen-1] == '\r' || reqbuf[reqlen-1] == '\n')){
-          memcpy(&reqbuf[reqlen], "\r\n", strlen("\r\n"));
-          reqlen += strlen("\r\n");
-        }
-
-        memcpy(&reqbuf[reqlen], s_boundary, strlen(s_boundary)); // s->e
-        reqlen += strlen(s_boundary);
 
         memcpy(&reqbuf[reqlen], s_contdisp, strlen(s_contdisp));
         reqlen += strlen(s_contdisp);
@@ -310,11 +296,26 @@ string RobotControl::postMultiFileToServer(const char *url, const char *filename
         memcpy(&reqbuf[reqlen], s_conttype, strlen(s_conttype));
         reqlen += strlen(s_conttype);
 
-        fread(imgbuf, 1, len, fp);
-        fclose(fp);
+        fread(imgbuf, 1, jpeg_len, fp_jpeg);
+        fclose(fp_jpeg);
         
-        memcpy(&reqbuf[reqlen], imgbuf, len);
-        reqlen += len;
+        memcpy(&reqbuf[reqlen], imgbuf, jpeg_len);
+        reqlen += jpeg_len;
+
+          memcpy(&reqbuf[reqlen], "\r\n", strlen("\r\n"));
+          reqlen += strlen("\r\n");
+
+        memcpy(&reqbuf[reqlen], s_boundary, strlen(s_boundary));
+        reqlen += strlen(s_boundary);
+
+        memcpy(&reqbuf[reqlen], s_jsondisp, strlen(s_jsondisp));
+        reqlen += strlen(s_jsondisp);
+
+        memcpy(&reqbuf[reqlen], s_jsontype, strlen(s_jsontype));
+        reqlen += strlen(s_jsontype);
+        
+        memcpy(&reqbuf[reqlen], json_str, strlen(json_str));
+        reqlen += strlen(json_str);
 
         memcpy(&reqbuf[reqlen], e_boundary, strlen(e_boundary));
         reqlen += strlen(e_boundary);
@@ -413,7 +414,7 @@ bool RobotControl::powerOn()
                 string response;
                 string jsonstr;
 
-                response = postImageFileToServer((char *)WATSON_POST_URL, filename);
+                response = postMultiFileToServer((char *)WATSON_POST_URL, filename, watson_classid);
                 if (response.size() == 0 )
                 {
                     log("POCHI", LOGLEVEL_ERROR, "HTTP POST FAILED! %d %s\r\n", response.size(), response.c_str());

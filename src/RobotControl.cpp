@@ -4,25 +4,22 @@
 #include "common.h"
 #include "logprint.h"
 
-#include "TCPSocket.h"
+#include "SoundControl.h"
 
-//#define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=35b8434adfad0549dcb8f12a34d79e99ffc29493&version=2016-05-20"
 #define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=35b8434adfad0549dcb8f12a34d79e99ffc29493&version=2016-05-20"
-#define TEST_POST_URL "http://posttestserver.com/post.php"
 #define RKING_POST_URL "http://104.199.222.173/r-king/watson/uploadapi.php"
 
-#define TEST_WIFI_SSID "S0512"
-#define TEST_WIFI_PASS "0793353721"
-
-//#define TEST_WIFI_SSID "4CE67630E22B"
-//#define TEST_WIFI_PASS "t3340pn5mkmkh"
+#define TEST_WIFI_SSID "4CE67630E22B"
+#define TEST_WIFI_PASS "t3340pn5mkmkh"
 
 static char g_ssid[PATH_MAX];
 static char g_pass[PATH_MAX];
 static char g_post_url[PATH_MAX];
 
-#define watson_classid "{\r\n   \"classifier_ids\":[\r\n      \"CUSTOM_497729065\"\r\n      \r\n   ],\r\n \"threshold\":0.0}\r\n"
+#define watson_classid "{\r\n   \"classifier_ids\":[\r\n      \"CUSTOM_497729065\"\r\n      \r\n   ],\r\n \"threshold\":0.3}\r\n"
 bool is_connect_wifi = false;
+
+static DigitalIn s_UserSW(USER_BUTTON0);
 
 /**
  * コンストラクタ
@@ -72,39 +69,6 @@ bool RobotControl::connectWifi()
     //-----------------------------------
     // AP接続
     //-----------------------------------
-    memset(g_ssid, 0, sizeof(g_ssid));
-    memset(g_pass, 0, sizeof(g_pass));
-    memset(g_post_url, 0, sizeof(g_post_url));
-
-    FILE *fp = fopen("/" MOUNT_NAME "/lychee_config.txt", "r");
-    if (fp != NULL)
-    {
-        fgets(g_ssid, PATH_MAX, fp);
-        fgets(g_pass, PATH_MAX, fp);
-        fgets(g_post_url, PATH_MAX, fp);
-        fclose(fp);
-        if (g_ssid[strlen(g_ssid) - 2] == '\r')
-        {
-            // CR-LF
-            g_ssid[strlen(g_ssid) - 2] = '\0';
-            g_pass[strlen(g_pass) - 2] = '\0';
-            g_post_url[strlen(g_post_url) - 2] = '\0';
-        }
-        else
-        {
-            // LF
-            g_ssid[strlen(g_ssid) - 1] = '\0';
-            g_pass[strlen(g_pass) - 1] = '\0';
-            g_post_url[strlen(g_post_url) - 1] = '\0';
-        }
-    }
-    else
-    {
-        strcpy(g_ssid, TEST_WIFI_SSID);
-        strcpy(g_pass, TEST_WIFI_PASS);
-        strcpy(g_post_url, WATSON_POST_URL);
-    }
-
     while (1)
     {
         log("POCHI", LOGLEVEL_INFO, "WIFI CONNECTING... SSID=%s, PASS=%s\r\n",
@@ -171,6 +135,163 @@ bool RobotControl::connectWifi()
 
     is_connect_wifi = true;
 
+    return true;
+}
+
+/**
+ * main処理.
+ * @param
+ * @return 1(1):成功, FALSE(0):失敗
+ */
+bool RobotControl::powerOn()
+{
+    log("POCHI", LOGLEVEL_MARK, "POWER ON\r\n");
+
+    //-----------------------------------
+    // 設定ファイル読み込み
+    //-----------------------------------
+    memset(g_ssid, 0, sizeof(g_ssid));
+    memset(g_pass, 0, sizeof(g_pass));
+    memset(g_post_url, 0, sizeof(g_post_url));
+
+    FILE *fp = fopen("/" MOUNT_NAME "/lychee_config.txt", "r");
+    if (fp != NULL)
+    {
+        fgets(g_ssid, PATH_MAX, fp);
+        fgets(g_pass, PATH_MAX, fp);
+        fgets(g_post_url, PATH_MAX, fp);
+        fclose(fp);
+        if (g_ssid[strlen(g_ssid) - 2] == '\r')
+        {
+            // CR-LF
+            g_ssid[strlen(g_ssid) - 2] = '\0';
+            g_pass[strlen(g_pass) - 2] = '\0';
+            g_post_url[strlen(g_post_url) - 2] = '\0';
+        }
+        else
+        {
+            // LF
+            g_ssid[strlen(g_ssid) - 1] = '\0';
+            g_pass[strlen(g_pass) - 1] = '\0';
+            g_post_url[strlen(g_post_url) - 1] = '\0';
+        }
+
+        log("POCHI", LOGLEVEL_INFO, "SETTING FILE READ SUCCESS! %s, %s, %s\r\n",
+            g_ssid,
+            g_pass,
+            g_post_url);
+    }
+    else
+    {
+        log("POCHI", LOGLEVEL_WARN, "SETTING FILE NOT FOUND!\r\n");
+
+        strcpy(g_ssid, TEST_WIFI_SSID);
+        strcpy(g_pass, TEST_WIFI_PASS);
+        strcpy(g_post_url, WATSON_POST_URL);
+    }
+
+    m_pMotorControl = new MotorControl(MOTOR_TX_PIN, MOTOR_RX_PIN);
+    if (m_pMotorControl != NULL)
+    {
+        m_pMotorControl->init();
+        log("POCHI", LOGLEVEL_MARK, "MOTOR OK\r\n");
+    }
+
+    m_pCameraControl = new CameraControl();
+    if (m_pCameraControl != NULL)
+    {
+        m_pCameraControl->initCamera();
+        log("POCHI", LOGLEVEL_MARK, "CAMERA OK\r\n");
+    }
+
+    //-----------------------------------
+    // WIFI CONNECT
+    //-----------------------------------
+    connectWifi();
+
+    m_isLife = 1;
+
+    static int filecnt = 0;
+
+    //-----------------------------------
+    // メイン処理
+    //-----------------------------------
+
+    log("POCHI", LOGLEVEL_INFO, "TAKE PICTURE MODE. PLEASE PUSH USER0 BUTTON.. \r\n");
+
+    while (m_isLife)
+    {
+        //-----------------------------------
+        // カメラ撮影
+        //-----------------------------------
+        if (m_pCameraControl != NULL)
+        {
+            if( s_UserSW == 1 ){
+                Thread::wait(100);
+                continue;
+            }
+
+            char filename[PATH_MAX];
+            sprintf(filename, "/" MOUNT_NAME "/img%d.jpg", filecnt++);
+            if (m_pCameraControl->takeCamera(filename) == 1)
+            {
+                log("POCHI", LOGLEVEL_INFO, "CAMERA TAKE PICTURE SUCCESS. %s\r\n", filename);
+
+                string response;
+                string jsonstr;
+
+                response = postMultiFileToServer((char *)WATSON_POST_URL, filename, watson_classid);
+                if (response.size() == 0 )
+                {
+                    log("POCHI", LOGLEVEL_ERROR, "HTTP POST FAILED! %d %s\r\n", response.size(), response.c_str());
+                }
+                else
+                {
+                    log("POCHI", LOGLEVEL_MARK, "HTTP POST SUCCESS!. reslen=%d\r\n", 
+                        response.size());
+                    jsonstr = response;
+                }
+
+                Thread::wait(500);
+
+                response = postMultiFileToServer((char *)RKING_POST_URL, filename, jsonstr.c_str());
+                if (response.size() == 0 )
+                {
+                    log("POCHI", LOGLEVEL_ERROR, "WATSON HTTP POST FAILED!\r\n");
+                }
+                else
+                {
+                    log("POCHI", LOGLEVEL_MARK, "WATSON HTTP POST SUCCESS!. reslen=%d\r\n", 
+                        response.size());
+                }
+
+                Thread::wait(500);
+                
+                if (jsonstr.find("LYCHEE") != std::string::npos)
+                {
+                    log("POCHI", LOGLEVEL_INFO, "THIS IS LYCHEE!\r\n");
+                    playSound("/storage/lychee.wav");
+                }
+                else if (jsonstr.find("PEACH") != std::string::npos)
+                {
+                    log("POCHI", LOGLEVEL_INFO, "THIS IS PEACH!\r\n");
+                    playSound("/storage/peach.wav");
+                }
+                else
+                {
+                    log("POCHI", LOGLEVEL_INFO, "THIS IS UNKNOWN!\r\n");
+                    playSound("/storage/unknown.wav");
+                }
+            }
+            else
+            {
+                log("POCHI", LOGLEVEL_INFO, "CAMERA TAKE PICTURE FAILED. %s\r\n", filename);
+                Thread::wait(1000);
+                continue;
+            }
+        }
+        Thread::wait(5000);
+    }
     return true;
 }
 
@@ -360,172 +481,4 @@ string RobotControl::postMultiFileToServer(const char *url, const char *filename
     }
 
     return resultstr;
-}
-
-/**
- * main処理.
- * @param
- * @return 1(1):成功, FALSE(0):失敗
- */
-bool RobotControl::powerOn()
-{
-    log("POCHI", LOGLEVEL_MARK, "POWER ON\r\n");
-
-    m_pMotorControl = new MotorControl(MOTOR_TX_PIN, MOTOR_RX_PIN);
-    if (m_pMotorControl != NULL)
-    {
-        m_pMotorControl->init();
-        log("POCHI", LOGLEVEL_MARK, "MOTOR OK\r\n");
-    }
-
-    m_pCameraControl = new CameraControl();
-    if (m_pCameraControl != NULL)
-    {
-        m_pCameraControl->initCamera();
-        log("POCHI", LOGLEVEL_MARK, "CAMERA OK\r\n");
-    }
-
-    //-----------------------------------
-    // WIFI CONNECT
-    //-----------------------------------
-    connectWifi();
-
-    m_isLife = 1;
-
-    static int filecnt = 0;
-
-    //-----------------------------------
-    // メイン処理
-    //-----------------------------------
-
-    while (m_isLife)
-    {
-        //-----------------------------------
-        // カメラ撮影
-        //-----------------------------------
-        if (m_pCameraControl != NULL)
-        {
-            char filename[PATH_MAX];
-            sprintf(filename, "/" MOUNT_NAME "/img%d.jpg", filecnt++);
-            if (m_pCameraControl->takeCamera(filename) == 1)
-            {
-                log("POCHI", LOGLEVEL_INFO, "CAMERA TAKE PICTURE SUCCESS. %s\r\n", filename);
-
-                string response;
-                string jsonstr;
-
-                response = postMultiFileToServer((char *)WATSON_POST_URL, filename, watson_classid);
-                if (response.size() == 0 )
-                {
-                    log("POCHI", LOGLEVEL_ERROR, "HTTP POST FAILED! %d %s\r\n", response.size(), response.c_str());
-                }
-                else
-                {
-                    log("POCHI", LOGLEVEL_MARK, "HTTP POST SUCCESS!. reslen=%d\r\n", 
-                        response.size());
-                    jsonstr = response;
-                }
-
-                Thread::wait(5000);
-
-                response = postMultiFileToServer((char *)RKING_POST_URL, filename, jsonstr.c_str());
-                if (response.size() == 0 )
-                {
-                    log("POCHI", LOGLEVEL_ERROR, "WATSON HTTP POST FAILED!\r\n");
-                }
-                else
-                {
-                    log("POCHI", LOGLEVEL_MARK, "WATSON HTTP POST SUCCESS!. reslen=%d\r\n", 
-                        response.size());
-                }
-            }
-        }
-        Thread::wait(5000);
-    }
-    return true;
-}
-
-/**
- * 
- * @param
- * @return 1(1):成功, FALSE(0):失敗
- */
-bool RobotControl::gotoFront(void)
-{
-    if (m_pMotorControl == NULL)
-    {
-        return false;
-    }
-
-    m_pMotorControl->front();
-
-    return true;
-}
-
-/**
- * 
- * @param
- * @return 1(1):成功, FALSE(0):失敗
- */
-bool RobotControl::gotoBack(void)
-{
-    if (m_pMotorControl == NULL)
-    {
-        return false;
-    }
-
-    m_pMotorControl->back();
-
-    return true;
-}
-
-/**
- * 
- * @param
- * @return 1(1):成功, FALSE(0):失敗
- */
-bool RobotControl::turnLeft(void)
-{
-    if (m_pMotorControl == NULL)
-    {
-        return false;
-    }
-
-    m_pMotorControl->left();
-
-    return true;
-}
-
-/**
- * 
- * @param
- * @return 1(1):成功, FALSE(0):失敗
- */
-bool RobotControl::turnRight(void)
-{
-    if (m_pMotorControl == NULL)
-    {
-        return false;
-    }
-
-    m_pMotorControl->right();
-
-    return true;
-}
-
-/**
- * 
- * @param
- * @return 1(1):成功, FALSE(0):失敗
- */
-bool RobotControl::stop(void)
-{
-    if (m_pMotorControl == NULL)
-    {
-        return false;
-    }
-
-    m_pMotorControl->stop();
-
-    return true;
 }

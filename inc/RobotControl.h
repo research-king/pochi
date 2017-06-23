@@ -26,16 +26,6 @@ private:
   bool connectWifi(void);
   void onConnectWifiEvent(void);
 
-  bool gotoFront(void);
-  bool gotoBack(void);
-  bool turnLeft(void);
-  bool turnRight(void);
-
-  bool stop(void);
-
-  bool playDance(void);
-  bool playSong(void);
-
   string postImageFileToServer(const char *url, const char *filename);
   string postMultiFileToServer(const char *url, const char *filename, const char *filename2);
 };

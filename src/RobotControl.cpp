@@ -6,18 +6,17 @@
 
 #include "SoundControl.h"
 
-#define WATSON_POST_URL "http://gateway-a.watsonplatform.net/visual-recognition/api/v3/classify?api_key=35b8434adfad0549dcb8f12a34d79e99ffc29493&version=2016-05-20"
-#define RKING_POST_URL "http://104.199.222.173/r-king/watson/uploadapi.php"
-
-#define TEST_WIFI_SSID "4CE67630E22B"
-#define TEST_WIFI_PASS "t3340pn5mkmkh"
+#define WATSON_POST_URL "your url"
+#define TESTSERVER_POST_URL "your url"
+#define TEST_WIFI_SSID "your ssid"
+#define TEST_WIFI_PASS "your pass"
 
 static char g_ssid[PATH_MAX];
 static char g_pass[PATH_MAX];
 static char g_post_url[PATH_MAX];
 
-#define watson_classid "{\r\n   \"classifier_ids\":[\r\n      \"CUSTOM_497729065\"\r\n      \r\n   ],\r\n \"threshold\":0.3}\r\n"
-bool is_connect_wifi = false;
+#define WATSON_CLASSID "{\r\n   \"classifier_ids\":[\r\n      \"CUSTOM_497729065\"\r\n      \r\n   ],\r\n \"threshold\":0.3}\r\n"
+
 
 static DigitalIn s_UserSW(USER_BUTTON0);
 
@@ -29,6 +28,7 @@ static DigitalIn s_UserSW(USER_BUTTON0);
 RobotControl::RobotControl()
 {
     m_isLife = false;
+    m_is_connect_wifi = false;
 }
 
 /**
@@ -42,7 +42,7 @@ bool RobotControl::isConnectWifi()
     {
         //if( m_pWifiInterface->isConnected() == true ) // TODO: 接続状態を判断するAPIなし？
         {
-            return true;
+            return m_is_connect_wifi;
         }
     }
 
@@ -56,7 +56,7 @@ bool RobotControl::isConnectWifi()
  */
 bool RobotControl::connectWifi()
 {
-    if (is_connect_wifi == true)
+    if (m_is_connect_wifi == true)
     {
         return true;
     }
@@ -133,7 +133,7 @@ bool RobotControl::connectWifi()
         m_pWifiInterface->get_ip_address(),
         m_pWifiInterface->get_rssi());
 
-    is_connect_wifi = true;
+    m_is_connect_wifi = true;
 
     return true;
 }
@@ -190,13 +190,6 @@ bool RobotControl::powerOn()
         strcpy(g_post_url, WATSON_POST_URL);
     }
 
-    m_pMotorControl = new MotorControl(MOTOR_TX_PIN, MOTOR_RX_PIN);
-    if (m_pMotorControl != NULL)
-    {
-        m_pMotorControl->init();
-        log("POCHI", LOGLEVEL_MARK, "MOTOR OK\r\n");
-    }
-
     m_pCameraControl = new CameraControl();
     if (m_pCameraControl != NULL)
     {
@@ -226,6 +219,7 @@ bool RobotControl::powerOn()
         //-----------------------------------
         if (m_pCameraControl != NULL)
         {
+            // USER SW0 を押した時にカメラ撮影して画像Post
             if( s_UserSW == 1 ){
                 Thread::wait(100);
                 continue;
@@ -240,7 +234,8 @@ bool RobotControl::powerOn()
                 string response;
                 string jsonstr;
 
-                response = postMultiFileToServer((char *)WATSON_POST_URL, filename, watson_classid);
+                // WatsonサーバーへPost
+                response = postMultiFileToServer((char *)WATSON_POST_URL, filename, WATSON_CLASSID);
                 if (response.size() == 0 )
                 {
                     log("POCHI", LOGLEVEL_ERROR, "HTTP POST FAILED! %d %s\r\n", response.size(), response.c_str());
@@ -254,7 +249,8 @@ bool RobotControl::powerOn()
 
                 Thread::wait(500);
 
-                response = postMultiFileToServer((char *)RKING_POST_URL, filename, jsonstr.c_str());
+                // テストサーバーへポスト
+                response = postMultiFileToServer((char *)TESTSERVER_POST_URL, filename, jsonstr.c_str());
                 if (response.size() == 0 )
                 {
                     log("POCHI", LOGLEVEL_ERROR, "WATSON HTTP POST FAILED!\r\n");
@@ -267,6 +263,7 @@ bool RobotControl::powerOn()
 
                 Thread::wait(500);
                 
+                // 結果解析
                 if (jsonstr.find("LYCHEE") != std::string::npos)
                 {
                     log("POCHI", LOGLEVEL_INFO, "THIS IS LYCHEE!\r\n");

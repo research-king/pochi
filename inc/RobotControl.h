@@ -17,7 +17,7 @@ public:
 
 private:  
   unsigned char m_isLife;
-  MotorControl* m_pMotorControl;
+  bool m_is_connect_wifi;
   CameraControl* m_pCameraControl;
   ESP32Interface* m_pWifiInterface;
   HttpRequest *m_HttpRequest;
